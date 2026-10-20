@@ -307,6 +307,6 @@ Released under the [MIT License](LICENSE). See `LICENSE` for details.
 **QuantiSpark** · Team ID `VTU-QFF-HC-0154` · Tier `Online`
 · Built with ⚛️ Qiskit for the VTU-QFF Hackathon
 
-[⬆ Back to Top](#QuantiSpark)
+[⬆ Back to Top](#quantispark)
 
 </div>
