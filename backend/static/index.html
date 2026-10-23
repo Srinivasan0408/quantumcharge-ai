@@ -1,1 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QiBits — EV Smart Charging Quantum & Classical Optimizer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Chart.js CDN for interactive visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo-area">
+      <div class="logo-icon">⚛</div>
+      <div class="title-group">
+        <h1>QiBits Optimization Hub</h1>
+        <p>EV Fleet Smart Charging Scheduling: Google OR-Tools CP-SAT & Genuine Qiskit QAOA</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div id="system-status" class="status-badge">
+        <span class="status-dot"></span>
+        <span id="system-status-text">Connecting to Backend...</span>
+      </div>
+      <button id="btn-load-sample" class="btn btn-secondary">
+        <span>📂</span> Load Built-in Datasets
+      </button>
+    </div>
+  </header>
 
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="tab-btn active" data-tab="tab-data">1. Data Ingestion & Validation</button>
+    <button class="tab-btn" data-tab="tab-analysis">2. Telemetry & Analysis</button>
+    <button class="tab-btn" data-tab="tab-classical">3. Classical CP-SAT Solver</button>
+    <button class="tab-btn" data-tab="tab-quantum">4. Genuine Qiskit QAOA</button>
+    <button class="tab-btn" data-tab="tab-benchmark">5. Side-by-Side Benchmark</button>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Global Notification Banner -->
+    <div id="global-alert" style="display: none;" class="alert"></div>
+
+    <!-- TAB 1: DATA INGESTION & VALIDATION -->
+    <section id="tab-data" class="tab-content active">
+      <div class="grid-2">
+        <!-- Tariff Upload Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">⚡ Electricity Tariff Dataset</h2>
+            <span id="tariff-count-badge" class="badge badge-blue">0 records</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Upload hourly tariff rates across price profiles (Flat, Peak_OffPeak, TimeOfUse, SolarSurplus).
+          </p>
+          <div class="form-group">
+            <input type="file" id="input-tariff-file" accept=".csv" class="form-control" />
+          </div>
+          <button id="btn-upload-tariff" class="btn btn-primary" style="margin-bottom: 1rem;">
+            <span>⬆</span> Upload Tariff CSV
+          </button>
+          <div class="table-container">
+            <table id="table-tariffs">
+              <thead>
+                <tr>
+                  <th>Profile</th>
+                  <th>Slot</th>
+                  <th>Window</th>
+                  <th>Price (₹/kWh)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-tariffs">
+                <tr><td colspan="4" style="text-align:center; color: var(--text-muted);">No tariff records loaded</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- EV Fleet Upload Card -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🚗 EV Fleet Charging Sessions</h2>
+            <span id="ev-count-badge" class="badge badge-purple">0 vehicles</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Upload vehicle session parameters (Arrival, Departure, Battery kWh, Initial SOC, Target SOC, Max Power).
+          </p>
+          <div class="form-group">
+            <input type="file" id="input-ev-file" accept=".csv" class="form-control" />
+          </div>
+          <button id="btn-upload-ev" class="btn btn-primary" style="margin-bottom: 1rem;">
+            <span>⬆</span> Upload EV Sessions CSV
+          </button>
+          <div class="table-container">
+            <table id="table-evs">
+              <thead>
+                <tr>
+                  <th>EV ID</th>
+                  <th>Charger</th>
+                  <th>Window</th>
+                  <th>Battery</th>
+                  <th>SOC Range</th>
+                  <th>Max kW</th>
+                  <th>Energy Req</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-evs">
+                <tr><td colspan="8" style="text-align:center; color: var(--text-muted);">No EV sessions loaded</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual EV Entry / Edit Form -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">✏ Manual EV Entry / Modification</h2>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">Directly updates the active optimizer dataset</span>
+        </div>
+        <form id="form-ev-manual" class="grid-4" style="margin-bottom: 0;">
+          <div class="form-group">
+            <label class="form-label">EV ID</label>
+            <input type="text" id="manual-ev-id" class="form-control" required placeholder="e.g. EV026" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Charger ID</label>
+            <input type="text" id="manual-charger-id" class="form-control" required placeholder="e.g. CH01" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Arrival Slot [0-23]</label>
+            <input type="number" id="manual-arrival-slot" class="form-control" min="0" max="23" value="0" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Departure Slot [1-24]</label>
+            <input type="number" id="manual-departure-slot" class="form-control" min="1" max="24" value="8" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Battery Capacity (kWh)</label>
+            <input type="number" step="0.1" id="manual-battery-kwh" class="form-control" value="8.0" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Initial SOC (%)</label>
+            <input type="number" step="1" id="manual-init-soc" class="form-control" min="0" max="100" value="30" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target SOC (%)</label>
+            <input type="number" step="1" id="manual-target-soc" class="form-control" min="0" max="100" value="90" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Power (kW)</label>
+            <input type="number" step="0.1" id="manual-max-power" class="form-control" value="11.0" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Charging Efficiency</label>
+            <input type="number" step="0.01" id="manual-efficiency" class="form-control" min="0.5" max="1.0" value="0.92" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Required Energy (kWh)</label>
+            <input type="number" step="0.01" id="manual-req-energy" class="form-control" value="5.22" required />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end; grid-column: span 2;">
+            <button type="submit" id="btn-save-manual-ev" class="btn btn-cyan" style="width: 100%;">
+              <span>💾</span> Save EV Session to Active Dataset
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Dataset Validation Card -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔍 Comprehensive Schema & Integrity Validation</h2>
+          <button id="btn-validate" class="btn btn-primary">
+            <span>🛡</span> Validate Loaded Datasets
+          </button>
+        </div>
+        <div id="validation-output" style="display: none;">
+          <div id="validation-alert" class="alert"></div>
+          <div class="grid-2">
+            <div>
+              <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--accent-red);">Validation Errors (<span id="val-error-count">0</span>)</h3>
+              <div class="table-container" style="max-height: 200px;">
+                <table>
+                  <thead><tr><th>Row</th><th>Field</th><th>Description</th></tr></thead>
+                  <tbody id="tbody-val-errors"></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--accent-amber);">Validation Warnings (<span id="val-warn-count">0</span>)</h3>
+              <div class="table-container" style="max-height: 200px;">
+                <table>
+                  <thead><tr><th>Row</th><th>Field</th><th>Description</th></tr></thead>
+                  <tbody id="tbody-val-warnings"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: DATASET ANALYSIS & TELEMETRY -->
+    <section id="tab-analysis" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="font-size: 1.25rem;">Fleet Energy & Tariff Telemetry</h2>
+        <button id="btn-run-analysis" class="btn btn-primary">
+          <span>📊</span> Compute & Refresh Telemetry
+        </button>
+      </div>
+
+      <div class="grid-4">
+        <div class="metric-card">
+          <span class="metric-label">Total Fleet Energy</span>
+          <span id="metric-total-energy" class="metric-value">--</span>
+          <span class="metric-sub">Required charging volume</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Active EV Count</span>
+          <span id="metric-total-evs" class="metric-value">--</span>
+          <span class="metric-sub">Connected vehicles</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Theoretical Peak Demand</span>
+          <span id="metric-peak-demand" class="metric-value">--</span>
+          <span class="metric-sub">Uncoordinated coincident load</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Average Stay Duration</span>
+          <span id="metric-avg-stay" class="metric-value">--</span>
+          <span class="metric-sub">Hours parked at charger</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Hourly Tariff Comparison (₹/kWh)</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-tariffs"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Arrival vs Departure Temporal Spread</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-fleet-distribution"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Substation Contention & Feasibility Assessment</h3>
+          <span id="analysis-feasibility-badge" class="badge badge-green">Status: Pending</span>
+        </div>
+        <div id="analysis-feasibility-notes" style="font-size: 0.85rem; color: var(--text-secondary);">
+          Click "Compute & Refresh Telemetry" to run the fleet constraint analysis.
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: CLASSICAL OPTIMIZATION (OR-TOOLS CP-SAT) -->
+    <section id="tab-classical" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">⚙ Classical Optimization Configuration (OR-Tools CP-SAT)</h2>
+        </div>
+        <div class="grid-4">
+          <div class="form-group">
+            <label class="form-label">Price Profile</label>
+            <select id="classical-profile" class="form-control">
+              <option value="TimeOfUse" selected>TimeOfUse (Dynamic)</option>
+              <option value="Peak_OffPeak">Peak_OffPeak</option>
+              <option value="SolarSurplus">SolarSurplus</option>
+              <option value="Flat">Flat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Substation Grid Power Limit (kW)</label>
+            <input type="number" step="5" id="classical-grid-limit" class="form-control" value="70.0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Peak Demand Penalty Factor</label>
+            <input type="number" step="0.01" id="classical-peak-penalty" class="form-control" value="0.05" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Solve Timeout (seconds)</label>
+            <input type="number" step="1" id="classical-timeout" class="form-control" value="10.0" />
+          </div>
+        </div>
+        <button id="btn-run-classical" class="btn btn-cyan" style="width: 100%; padding: 0.75rem;">
+          <span>▶</span> Execute Classical Optimization (CP-SAT)
+        </button>
+      </div>
+
+      <!-- Classical Results Dashboard -->
+      <div id="classical-results" style="display: none;">
+        <div class="grid-4">
+          <div class="metric-card">
+            <span class="metric-label">CP-SAT Status</span>
+            <span id="res-c-status" class="metric-value">--</span>
+            <span id="res-c-time" class="metric-sub">Execution: --</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Total Fleet Cost</span>
+            <span id="res-c-cost" class="metric-value" style="color: var(--accent-cyan);">--</span>
+            <span class="metric-sub">Electricity procurement in INR</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Coincident Peak Grid Load</span>
+            <span id="res-c-peak" class="metric-value">--</span>
+            <span id="res-c-headroom" class="metric-sub">Headroom: --</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Energy Demand Fulfillment</span>
+            <span id="res-c-fulfillment" class="metric-value" style="color: var(--accent-green);">--</span>
+            <span id="res-c-energy" class="metric-sub">--</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Hourly Substation Power Profile vs Grid Limit</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-classical-hourly"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">EV-by-EV Optimal Charging Schedule & Battery State</h3>
+          </div>
+          <div class="table-container">
+            <table id="table-classical-schedules">
+              <thead>
+                <tr>
+                  <th>EV ID</th>
+                  <th>Charger</th>
+                  <th>Stay Window</th>
+                  <th>Initial SOC</th>
+                  <th>Final SOC</th>
+                  <th>Energy Delivered</th>
+                  <th>Fulfillment</th>
+                  <th>Cost (₹)</th>
+                  <th>Hourly Schedule Map (Slots 0-23)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-classical-schedules"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: GENUINE QUANTUM OPTIMIZATION (QISKIT QAOA) -->
+    <section id="tab-quantum" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">⚛ Genuine Qiskit QAOA Quantum Optimization</h2>
+          <span class="badge badge-purple">Real Quantum Circuit Execution</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Executes a genuine Quantum Approximate Optimization Algorithm (QAOA) on the Ising-formulated EV scheduling QUBO using Qiskit and Qiskit-Aer.
+        </p>
+        <div class="grid-4">
+          <div class="form-group">
+            <label class="form-label">EVs for Quantum Solver (Pick 2-4)</label>
+            <div id="quantum-ev-selector" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <!-- Dynamic checkboxes populated from EV sessions -->
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price Profile</label>
+            <select id="quantum-profile" class="form-control">
+              <option value="TimeOfUse" selected>TimeOfUse</option>
+              <option value="Peak_OffPeak">Peak_OffPeak</option>
+              <option value="SolarSurplus">SolarSurplus</option>
+              <option value="Flat">Flat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">QAOA Layers (p)</label>
+            <select id="quantum-p" class="form-control">
+              <option value="1" selected>p = 1 (Standard)</option>
+              <option value="2">p = 2 (Higher Depth)</option>
+              <option value="3">p = 3 (Deep Ansatz)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Measurement Shots</label>
+            <select id="quantum-shots" class="form-control">
+              <option value="1024" selected>1,024 Shots</option>
+              <option value="2048">2,048 Shots</option>
+              <option value="4096">4,096 Shots</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Classical Optimizer Max Iterations</label>
+            <input type="number" id="quantum-max-iter" class="form-control" value="25" min="5" max="80" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Energy Demand Penalty (A)</label>
+            <input type="number" id="quantum-penalty-a" class="form-control" value="20.0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Charger Conflict Penalty (B)</label>
+            <input type="number" id="quantum-penalty-b" class="form-control" value="25.0" />
+          </div>
+        </div>
+        <button id="btn-run-quantum" class="btn btn-purple" style="width: 100%; padding: 0.75rem;">
+          <span>⚛</span> Execute Genuine QAOA Optimization
+        </button>
+      </div>
+
+      <!-- Quantum Error Display (Shown when real solver fails) -->
+      <div id="quantum-error-box" class="alert alert-danger" style="display: none;">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">❌ Genuine Solver Error Encountered</h3>
+        <p style="margin-bottom: 0.5rem;">The QAOA optimizer returned an error. No fabricated results are displayed:</p>
+        <div id="quantum-error-trace" class="code-box"></div>
+      </div>
+
+      <!-- Quantum Results Dashboard -->
+      <div id="quantum-results" style="display: none;">
+        <div class="grid-4">
+          <div class="metric-card">
+            <span class="metric-label">Quantum Qubits</span>
+            <span id="res-q-qubits" class="metric-value">--</span>
+            <span id="res-q-depth" class="metric-sub">Circuit Depth: --</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Execution Time</span>
+            <span id="res-q-time" class="metric-value">--</span>
+            <span class="metric-sub">Aer Simulation Wall-Clock</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Best Quantum Cost</span>
+            <span id="res-q-cost" class="metric-value" style="color: var(--accent-purple);">--</span>
+            <span id="res-q-bitstring" class="metric-sub">Optimal State: --</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Constraint Status</span>
+            <span id="res-q-feasible" class="metric-value">--</span>
+            <span id="res-q-violations" class="metric-sub">Violations: 0</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Gate Breakdown -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Quantum Circuit Telemetry</h3>
+            </div>
+            <div id="quantum-gate-stats" style="font-size: 0.85rem; margin-bottom: 1rem;"></div>
+            <div class="chart-container">
+              <canvas id="chart-quantum-probabilities"></canvas>
+            </div>
+          </div>
+
+          <!-- Top Quantum Measurement States -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Top Measured Quantum States</h3>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bitstring</th>
+                    <th>Probability</th>
+                    <th>Shots</th>
+                    <th>QUBO Energy</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-quantum-states"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Decoded Schedules -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Decoded EV Quantum Schedules</h3>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>EV ID</th>
+                  <th>Charger</th>
+                  <th>Required Slots</th>
+                  <th>Scheduled Slots</th>
+                  <th>Delivered (kWh)</th>
+                  <th>Tariff Cost (₹)</th>
+                  <th>Demand Satisfied</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-quantum-schedules"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: SIDE-BY-SIDE BENCHMARK -->
+    <section id="tab-benchmark" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">⚔ Side-by-Side Benchmark: Classical OR-Tools vs Quantum QAOA</h2>
+          <span class="badge badge-purple">Mathematically Consistent Formulations</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+          Executes both Classical OR-Tools CP-SAT and Genuine Qiskit QAOA on the <strong>exact same immutable benchmark input</strong> with consistent economic cost units (kWh × ₹/kWh = ₹) and independent constraint validation.
+        </p>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <button id="btn-run-benchmark" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+            <span>⚡</span> Run Benchmark on Active Dataset
+          </button>
+          <button id="btn-run-reference-test" class="btn btn-cyan" style="padding: 0.75rem 1.5rem;">
+            <span>🎯</span> Run Task 6 Reproducible Reference Test (Min ₹9.00)
+          </button>
+        </div>
+        <div style="display: flex; gap: 1.5rem; align-items: center; margin-top: 0.85rem; padding: 0.5rem 0.75rem; background: rgba(255, 255, 255, 0.03); border-radius: 6px;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
+            <input type="checkbox" id="bm-unit-energy-mode" checked>
+            <span><strong>Unit Energy Mode:</strong> Each selected slot delivers exactly 1.0 kWh (Fair comparison: ₹9.00 baseline)</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="benchmark-results" style="display: none;">
+        <div id="benchmark-summary-alert" class="alert alert-info"></div>
+
+        <!-- Immutable Input Specifications -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📋 Verified Benchmark Input Parameters (Task 1)</h3>
+            <span id="bm-station-capacity-badge" class="badge badge-blue">Capacity: 1 unit</span>
+          </div>
+          <div id="bm-inputs-summary" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;"></div>
+          <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--accent-cyan);">Decision Variable Mapping (Task 3: Explicit Variable Index Order):</h4>
+          <div class="table-container" style="max-height: 200px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Qubit Index (q)</th>
+                  <th>Vehicle ID</th>
+                  <th>Slot</th>
+                  <th>Charger</th>
+                  <th>Grid Energy (kWh)</th>
+                  <th>Tariff (₹/kWh)</th>
+                  <th>Cost Coeff (₹)</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-qubit-mappings"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Classical Card -->
+          <div class="card" style="border-left: 4px solid var(--accent-blue);">
+            <div class="card-header">
+              <h3 class="card-title">🏛 Classical (OR-Tools CP-SAT)</h3>
+              <span id="bm-c-status" class="badge badge-green">OPTIMAL</span>
+            </div>
+            <div class="metric-card" style="margin-bottom: 1rem;">
+              <span class="metric-label">Economic Electricity Cost (INR)</span>
+              <span id="bm-c-cost" class="metric-value" style="color: var(--accent-cyan);">₹0.00</span>
+              <span id="bm-c-time" class="metric-sub">Runtime: --</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              <div>Variable Bitstring (x₀...xₙ₋₁): <code id="bm-c-var-bitstring" style="color: var(--accent-cyan); font-weight: bold;">--</code></div>
+              <div>Qiskit Bitstring (|qₙ₋₁...q₀⟩): <code id="bm-c-qiskit-bitstring" style="color: var(--text-muted);">--</code></div>
+              <div>Feasibility: <span id="bm-c-feas-badge" class="badge badge-green">VALID</span></div>
+            </div>
+          </div>
+
+          <!-- Quantum Card -->
+          <div class="card" style="border-left: 4px solid var(--accent-purple);">
+            <div class="card-header">
+              <h3 class="card-title">⚛ Quantum (Qiskit QAOA)</h3>
+              <span id="bm-q-status" class="badge badge-purple">GENUINE QAOA</span>
+            </div>
+            <div class="metric-card" style="margin-bottom: 1rem;">
+              <span class="metric-label">Economic Electricity Cost (INR)</span>
+              <span id="bm-q-cost" class="metric-value" style="color: var(--accent-purple);">₹0.00</span>
+              <span id="bm-q-qubo" class="metric-sub">QUBO Penalized Energy: --</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              <div>Variable Bitstring (x₀...xₙ₋₁): <code id="bm-q-var-bitstring" style="color: var(--accent-purple); font-weight: bold;">--</code></div>
+              <div>Qiskit Bitstring (|qₙ₋₁...q₀⟩): <code id="bm-q-qiskit-bitstring" style="color: var(--text-muted);">--</code></div>
+              <div>Feasibility: <span id="bm-q-feas-badge" class="badge badge-green">VALID</span></div>
+              <div id="bm-q-violations" style="color: var(--accent-red); margin-top: 0.25rem;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Direct Comparison Analysis (Task 5)</h3>
+          </div>
+          <div class="grid-4">
+            <div class="metric-card">
+              <span class="metric-label">Cost Difference</span>
+              <span id="bm-diff-cost" class="metric-value">--</span>
+              <span class="metric-sub">QAOA vs CP-SAT bill</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Exact Solution Match</span>
+              <span id="bm-match-badge" class="metric-value">--</span>
+              <span class="metric-sub">Identical variable vector</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">QAOA Optimality Gap</span>
+              <span id="bm-gap-inr" class="metric-value">--</span>
+              <span class="metric-sub">Gap relative to classical min</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Execution Time Ratio</span>
+              <span id="bm-runtime-ratio" class="metric-value">--</span>
+              <span class="metric-sub">Simulation overhead</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
